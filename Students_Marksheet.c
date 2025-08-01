@@ -20,57 +20,81 @@ typedef struct {
 } Student;
 
 
-int AddStudent(Student *studentList, int *NumberOfStudent, int SubjectCount, char **subjectNames) {
+int isRollNoDuplicate(Student *list, int count, int rollNo) {
+    for (int i = 0; i < count; i++) {
+        if (list[i].RollNO == rollNo) return 1;
+    }
+    return 0;
+}
+
+int AddStudent(Student *studentList, int *NumberOfStudent, int *SubjectCount, char ***subjectNames) {
     Student *stud = &studentList[*NumberOfStudent];
     stud->Name = (char *)malloc(MAX_NAME_LEN);
-    if (stud->Name == NULL) {
-        printf("Invalid .\n");
+    if (!stud->Name) return 0;
+    printf("Enter Student Name: ");
+    scanf(" %s", stud->Name); 
+    printf("Enter Roll Number: ");
+    scanf("%d", &stud->RollNO);
+    if (isRollNoDuplicate(studentList, *NumberOfStudent, stud->RollNO)) {
+        printf("⚠️ Roll number already exists. Try again.\n");
+        free(stud->Name);
         return 0;
     }
-    printf("Enter the Name of the Student: ");
-    scanf("%s", stud->Name);
-    printf("Enter the Roll Number of Student: ");
-    scanf("%d", &stud->RollNO);
-    printf("Enter the Number of Subjects: ");
-    scanf("%d", &SubjectCount);
-    if (SubjectCount < 3) {
-        printf("Minimum 3 subjects required.\n");
-        return 1;
+    if (*NumberOfStudent == 0) {
+        printf("Enter number of subjects: ");
+        scanf("%d", SubjectCount);
+        if (*SubjectCount < 3) {
+            printf("Minimum 3 subjects required.\n");
+            free(stud->Name);
+            return 0;
+        }
+        *subjectNames = (char **)malloc(sizeof(char *) * (*SubjectCount));
+        getchar(); 
+        for (int i = 0; i < *SubjectCount; i++) {
+            (*subjectNames)[i] = (char *)malloc(MAX_NAME_LEN);
+            printf("Enter Subject %d Name: ", i + 1);
+            fgets((*subjectNames)[i], MAX_NAME_LEN, stdin);
+
+            size_t len = strlen((*subjectNames)[i]);
+            if (len > 0 && (*subjectNames)[i][len - 1] == '\n') {
+                (*subjectNames)[i][len - 1] = '\0';
+            }
+        }
+        FILE *fptr = fopen("studentsReport.csv", "w");
+        if (!fptr) {
+            printf("Error creating file.\n");
+            return 0;
+        }
+        fprintf(fptr, "NAME,ROLL.NO.");
+        for (int i = 0; i < *SubjectCount; i++)
+            fprintf(fptr, ",%s", (*subjectNames)[i]);
+        fprintf(fptr, ",TOTAL,AVERAGE\n");
+        fclose(fptr);
     }
-    subjectNames = (char **)malloc(sizeof(char *) * SubjectCount);
-    for (int i = 0; i < SubjectCount; i++) {
-        subjectNames[i] = (char *)malloc(MAX_NAME_LEN);
-        printf("Enter the Name of Subject %d: ", i + 1);
-        scanf("%s", subjectNames[i]);
-    }
-    stud->subjects = (Subject *)malloc(sizeof(Subject) * SubjectCount);
+    stud->subjects = (Subject *)malloc(sizeof(Subject) * (*SubjectCount));
     stud->Total = 0;
-    for (int i = 0; i < SubjectCount; i++){
-        stud->subjects[i].name = subjectNames[i];
-        printf("Enter the Mark for %s: ", subjectNames[i]);
+    for (int i = 0; i < *SubjectCount; i++) {
+        stud->subjects[i].name = (*subjectNames)[i];
+        printf("Enter mark for %s: ", (*subjectNames)[i]);
         scanf("%d", &stud->subjects[i].marks);
         stud->Total += stud->subjects[i].marks;
     }
-    stud->Average = stud->Total / SubjectCount;
+    stud->Average = (float)stud->Total / (*SubjectCount);
     (*NumberOfStudent)++;
-    FILE *fptr = fopen("studentsReport.csv", "w");
-    if(fptr == NULL){
+    FILE *fptr = fopen("studentsReport.csv", "a");
+    if (!fptr) {
+        printf("Error opening file for appending.\n");
         return 0;
     }
-    fprintf(fptr,"NAME,ROLL.NO.");
-    for(int i =0;i<SubjectCount;i++){
-        fprintf(fptr, ",%s",subjectNames[i]);
-    }
-    fprintf(fptr,",TOTAL,AVERAGE\n");
-    fprintf(fptr, "%s,%d",stud->Name, stud->RollNO);
-    for (int i = 0; i < SubjectCount; i++) {
+    fprintf(fptr, "%s,%d", stud->Name, stud->RollNO);
+    for (int i = 0; i < *SubjectCount; i++)
         fprintf(fptr, ",%d", stud->subjects[i].marks);
-    }
     fprintf(fptr, ",%d,%.2f\n", stud->Total, stud->Average);
-
     fclose(fptr);
+    printf("Student data appended to 'studentsReport.csv'\n");
     return 1;
 }
+
 
 int DisplayAll(Student *studentList, int NumberOfStudent, int SubjectCount) {
     FILE *fptr = fopen("studentsReport.csv", "r");
@@ -79,13 +103,14 @@ int DisplayAll(Student *studentList, int NumberOfStudent, int SubjectCount) {
         return 0;
     }
     char line[MAX_LINE_LEN];
-    int subjectCount = 0;
     char *subjectNames[MAX_SUBJECTS];
+    SubjectCount = 0;
     if (fgets(line, sizeof(line), fptr)) {
-        line[strcspn(line, "\n")] = 0;  
-        char *token = strtok(line, ",");
-        token = strtok(NULL, ",");  
-        token = strtok(NULL, ",");  
+        line[strcspn(line, "\n")] = 0; 
+        char *token = strtok(line, ","); 
+        token = strtok(NULL, ",");      
+        token = strtok(NULL, ",");      
+
         while (token && strcmp(token, "Total") != 0) {
             subjectNames[SubjectCount++] = strdup(token);
             token = strtok(NULL, ",");
@@ -104,7 +129,7 @@ int DisplayAll(Student *studentList, int NumberOfStudent, int SubjectCount) {
         s.RollNO = atoi(token);
         for (int i = 0; i < SubjectCount; i++) {
             token = strtok(NULL, ",");
-            s.subjects[i].name = subjectNames[i];
+            s.subjects[i].name = subjectNames[i]; 
             s.subjects[i].marks = atoi(token);
             s.Total += s.subjects[i].marks;
         }
@@ -113,13 +138,12 @@ int DisplayAll(Student *studentList, int NumberOfStudent, int SubjectCount) {
         s.Average = atof(token);
         printf("\nStudent %d\n", studentIndex++);
         printf("Name: %s\n", s.Name);
-        printf("Roll No: %d\n", s.RollNO);
+        printf("Roll Number: %d\n", s.RollNO);
         for (int i = 0; i < SubjectCount; i++) {
             printf("%s: %d\n", s.subjects[i].name, s.subjects[i].marks);
         }
         printf("Total: %.2f\n", s.Total);
         printf("Average: %.2f\n", s.Average);
-
         free(s.Name);
         free(s.subjects);
     }
@@ -131,7 +155,7 @@ int DisplayAll(Student *studentList, int NumberOfStudent, int SubjectCount) {
 }
 
 int ExportFile(Student *studentList, int NumberOfStudent, int SubjectCount, char **subjectNames) {
-    char filename= "studentsReport.csv";
+    char *filename= "studentsReport.csv";
     for (int i = 0; i < NumberOfStudent; i++) {
         sprintf(filename, "%d.csv", studentList[i].RollNO);
         FILE *fp = fopen(filename, "w");
@@ -222,7 +246,7 @@ int main() {
                     break;
                 }
                 for (int i = 0; i < MaxStudents; i++) {
-                    AddStudent(studentList, &NumberOfStudent, SubjectCount, subjectNames);
+                    AddStudent(studentList, &NumberOfStudent, &SubjectCount, &subjectNames);
                 }
                 break;
             }
